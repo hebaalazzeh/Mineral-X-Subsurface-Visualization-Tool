@@ -1,9 +1,8 @@
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
+from mayavi import mlab
 
-# List of file paths
+# List of file paths for anisotropic and isotropic data
 anisotropic_files = [
     'plot_data_anisotropic_1.csv',
     'plot_data_anisotropic_2.csv',
@@ -35,6 +34,17 @@ def load_and_combine(files):
 anisotropic_data = load_and_combine(anisotropic_files)
 isotropic_data = load_and_combine(isotropic_files)
 
+# Aggregate the values by taking the mean for each (x, y, z) coordinate
+
+
+def aggregate_data(data):
+    aggregated_data = data.groupby(['x', 'y', 'z'], as_index=False).mean()
+    return aggregated_data
+
+
+anisotropic_data = aggregate_data(anisotropic_data)
+isotropic_data = aggregate_data(isotropic_data)
+
 # Extract unique coordinates and reshape the data
 
 
@@ -46,43 +56,44 @@ def reshape_data(data):
     x_count = len(x_unique)
     y_count = len(y_unique)
     z_count = len(z_unique)
-    value_count = data['value'].size
-    new_z_count = value_count // (x_count * y_count)
 
-    value_3d = data['value'].values.reshape((x_count, y_count, new_z_count))
+    value_3d = data['value'].values.reshape((x_count, y_count, z_count))
     return x_unique, y_unique, z_unique, value_3d
 
 
 x_unique_a, y_unique_a, z_unique_a, value_3d_a = reshape_data(anisotropic_data)
 x_unique_i, y_unique_i, z_unique_i, value_3d_i = reshape_data(isotropic_data)
 
-# Function to plot 3D slices and half-cube views
+# Function to plot 3D volumetric data using mayavi
 
 
-def plot_3d_slices(x, y, z, data, title, slices, half=False, cmap='viridis'):
-    fig = plt.figure(figsize=(15, 10))
-    for i, z_slice in enumerate(slices):
-        ax = fig.add_subplot(1, len(slices), i + 1, projection='3d')
-        X, Y = np.meshgrid(x, y)
-        Z = data[:, :, z_slice] if not half else data[:, :len(y)//2, z_slice]
-        surf = ax.plot_surface(
-            X, Y[:, :len(y)//2] if half else Y, Z, cmap=cmap)
-        ax.set_title(f'{title} (Slice {z_slice})')
-        fig.colorbar(surf, ax=ax, shrink=0.5, aspect=5)
-    plt.show()
+def plot_3d_volume(x, y, z, data, title, cmap='viridis'):
+    # Create meshgrid
+    X, Y, Z = np.meshgrid(x, y, z, indexing='ij')
+
+    # Convert meshgrid to 1D arrays and stack to pass to mayavi
+    X_flat = X.ravel()
+    Y_flat = Y.ravel()
+    Z_flat = Z.ravel()
+    data_flat = data.ravel()
+
+    # Create the figure
+    mlab.figure(title, bgcolor=(1, 1, 1))
+
+    # Create a scalar field
+    src = mlab.pipeline.scalar_field(X, Y, Z, data)
+
+    # Visualize the scalar field
+    mlab.pipeline.volume(src, vmin=data.min(), vmax=data.max())
+
+    # Add axes and title
+    mlab.axes()
+    mlab.title(title)
+    mlab.show()
 
 
-# Define slices to visualize
-slices_to_visualize = [0, 25, 50, 75, 99]
-
-# Plotting the selected 3D surface slices
-plot_3d_slices(x_unique_a, y_unique_a, z_unique_a, value_3d_a,
-               " Anisotropic Data", slices_to_visualize)
-plot_3d_slices(x_unique_i, y_unique_i, z_unique_i, value_3d_i,
-               " Isotropic Data", slices_to_visualize)
-
-# Plotting half-cube views
-plot_3d_slices(x_unique_a, y_unique_a, z_unique_a, value_3d_a,
-               "3D Half-Cube Anisotropic Data", slices_to_visualize, half=True)
-plot_3d_slices(x_unique_i, y_unique_i, z_unique_i, value_3d_i,
-               "Half-Cube Isotropic Data", slices_to_visualize, half=True)
+# Plotting the 3D volumetric data using mayavi
+plot_3d_volume(x_unique_a, y_unique_a, z_unique_a,
+               value_3d_a, "Anisotropic Data 3D Volume")
+plot_3d_volume(x_unique_i, y_unique_i, z_unique_i,
+               value_3d_i, "Isotropic Data 3D Volume")
