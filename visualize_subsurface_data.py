@@ -2,13 +2,16 @@
 Subsurface Visualization Tool
 Created by: Heba Alazzeh
 Function: This script loads, processes, and visualizes 3D subsurface data from multiple anisotropic and isotropic CSV files. 
-          The data is visualized using interactive 3D volumetric plots with color representing field values.
+          The tool allows users to toggle between different visualization modes: standard view, interactive slicing, and structure identification.
 Last Updated: 08/10/2024
 """
 
 import pandas as pd
 import numpy as np
 from mayavi import mlab
+from traits.api import HasTraits, Instance, Enum, Button
+from traitsui.api import View, Item, Group, HGroup, VGroup
+from mayavi.core.ui.api import MayaviScene, MlabSceneModel, SceneEditor
 
 # List of file paths for anisotropic and isotropic data
 anisotropic_files = [
@@ -72,35 +75,100 @@ def reshape_data(data):
 x_unique_a, y_unique_a, z_unique_a, value_3d_a = reshape_data(anisotropic_data)
 x_unique_i, y_unique_i, z_unique_i, value_3d_i = reshape_data(isotropic_data)
 
-# Function to plot 3D volumetric data using mayavi
+# The Visualization Tool
 
 
-def plot_3d_volume(x, y, z, data, title, cmap='viridis'):
-    # Create meshgrid
-    X, Y, Z = np.meshgrid(x, y, z, indexing='ij')
+class VisualizationTool(HasTraits):
+    scene = Instance(MlabSceneModel, ())
+    view_mode = Enum("Standard", "Interactive Slicing",
+                     "Structure Identification")
+    update_view = Button("Update View")
 
-    # Create the figure with a larger size for better resolution
-    mlab.figure(title, bgcolor=(1, 1, 1), size=(1200, 900))
+    def __init__(self):
+        super(VisualizationTool, self).__init__()
+        self.plot_data = None
+        self.x = None
+        self.y = None
+        self.z = None
 
-    # Create a scalar field
-    src = mlab.pipeline.scalar_field(X, Y, Z, data)
+    def _view_mode_changed(self):
+        self.update_visualization()
 
-    # Visualize the scalar field
-    vol = mlab.pipeline.volume(src, vmin=data.min(), vmax=data.max())
+    def _update_view_fired(self):
+        self.update_visualization()
 
-    # Adjust the opacity transfer function
-    vol._volume_property.scalar_opacity_unit_distance = 0.5
-    vol.update_pipeline()
+    def update_visualization(self):
+        self.scene.mlab.clf()  # Clear the scene
 
-    # Add axes and title with better visibility
-    mlab.axes(color=(0, 0, 0))  # Black color for the axes text
-    # Black color for the title text
-    mlab.title(title, size=0.5, color=(0, 0, 0))
-    mlab.show()
+        if self.view_mode == "Standard":
+            self.plot_standard()
+        elif self.view_mode == "Interactive Slicing":
+            self.plot_slicing()
+        elif self.view_mode == "Structure Identification":
+            self.plot_structures()
+
+    def plot_standard(self):
+        self.plot_data = mlab.pipeline.scalar_field(
+            self.x, self.y, self.z, self.data)
+        mlab.pipeline.volume(self.plot_data)
+        mlab.axes(color=(0, 0, 0))
+        mlab.title(f"{self.title} - Standard View", size=0.5, color=(0, 0, 0))
+
+    def plot_slicing(self):
+        self.plot_data = mlab.pipeline.scalar_field(
+            self.x, self.y, self.z, self.data)
+        mlab.pipeline.volume(self.plot_data)
+        mlab.pipeline.image_plane_widget(
+            self.plot_data, plane_orientation='x_axes', slice_index=self.x.shape[0] // 2)
+        mlab.pipeline.image_plane_widget(
+            self.plot_data, plane_orientation='y_axes', slice_index=self.y.shape[1] // 2)
+        mlab.pipeline.image_plane_widget(
+            self.plot_data, plane_orientation='z_axes', slice_index=self.z.shape[2] // 2)
+        mlab.axes(color=(0, 0, 0))
+        mlab.title(f"{self.title} - Interactive Slicing",
+                   size=0.5, color=(0, 0, 0))
+
+    def plot_structures(self):
+        self.plot_data = mlab.pipeline.scalar_field(
+            self.x, self.y, self.z, self.data)
+        threshold = mlab.pipeline.threshold(self.plot_data, low=self.threshold)
+        mlab.pipeline.surface(threshold, colormap='viridis')
+        mlab.axes(color=(0, 0, 0))
+        mlab.title(f"{self.title} - Structure Identification",
+                   size=0.5, color=(0, 0, 0))
+
+    def set_data(self, x, y, z, data, title, threshold=4.0):
+        self.x, self.y, self.z = np.meshgrid(x, y, z, indexing='ij')
+        self.data = data
+        self.title = title
+        self.threshold = threshold
+        self.update_visualization()
+
+    view = View(
+        VGroup(
+            HGroup(
+                Item('view_mode', label="Visualization Mode"),
+                Item('update_view', show_label=False),
+            ),
+            Group(
+                Item('scene',
+                     editor=SceneEditor(scene_class=MayaviScene),
+                     height=500, width=700, show_label=False),
+            ),
+        ),
+        resizable=True,
+        title="Subsurface Visualization Tool",
+    )
 
 
-# Plotting the 3D volumetric data using mayavi
-plot_3d_volume(x_unique_a, y_unique_a, z_unique_a,
-               value_3d_a, "Anisotropic Data")
-plot_3d_volume(x_unique_i, y_unique_i, z_unique_i,
-               value_3d_i, "Isotropic Data")
+# Instantiate the visualization tool
+viz_tool = VisualizationTool()
+
+# Set anisotropic data as default, and allow toggle between modes
+viz_tool.set_data(x_unique_a, y_unique_a, z_unique_a,
+                  value_3d_a, "Anisotropic Data")
+
+# To show isotropic data, call:
+# viz_tool.set_data(x_unique_i, y_unique_i, z_unique_i, value_3d_i, "Isotropic Data")
+
+viz_tool.configure_traits()
