@@ -1,3 +1,11 @@
+"""
+Subsurface Visualization Tool
+Created by: Heba Alazzeh
+Function: This script loads, processes, and visualizes 3D subsurface data from multiple anisotropic and isotropic CSV files. 
+          The data is visualized using interactive 3D volumetric plots with color representing field values.
+Last Updated: 08/10/2024
+"""
+
 import pandas as pd
 import numpy as np
 from mayavi import mlab
@@ -71,29 +79,28 @@ def plot_3d_volume(x, y, z, data, title, cmap='viridis'):
     # Create meshgrid
     X, Y, Z = np.meshgrid(x, y, z, indexing='ij')
 
-    # Convert meshgrid to 1D arrays and stack to pass to mayavi
-    X_flat = X.ravel()
-    Y_flat = Y.ravel()
-    Z_flat = Z.ravel()
-    data_flat = data.ravel()
-
-    # Create the figure
-    mlab.figure(title, bgcolor=(1, 1, 1))
+    # Create the figure with a larger size for better resolution
+    mlab.figure(title, bgcolor=(1, 1, 1), size=(1200, 900))
 
     # Create a scalar field
     src = mlab.pipeline.scalar_field(X, Y, Z, data)
 
     # Visualize the scalar field
-    mlab.pipeline.volume(src, vmin=data.min(), vmax=data.max())
+    vol = mlab.pipeline.volume(src, vmin=data.min(), vmax=data.max())
 
-    # Add axes and title
-    mlab.axes()
-    mlab.title(title)
+    # Adjust the opacity transfer function
+    vol._volume_property.scalar_opacity_unit_distance = 0.5
+    vol.update_pipeline()
+
+    # Add axes and title with better visibility
+    mlab.axes(color=(0, 0, 0))  # Black color for the axes text
+    # Black color for the title text
+    mlab.title(title, size=0.5, color=(0, 0, 0))
     mlab.show()
 
 
 # Plotting the 3D volumetric data using mayavi
 plot_3d_volume(x_unique_a, y_unique_a, z_unique_a,
-               value_3d_a, "Anisotropic Data 3D Volume")
+               value_3d_a, "Anisotropic Data")
 plot_3d_volume(x_unique_i, y_unique_i, z_unique_i,
-               value_3d_i, "Isotropic Data 3D Volume")
+               value_3d_i, "Isotropic Data")
