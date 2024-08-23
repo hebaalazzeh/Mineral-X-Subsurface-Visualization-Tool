@@ -3,13 +3,13 @@ Subsurface Visualization Tool
 Created by: Heba Alazzeh
 Function: This script loads, processes, and visualizes 3D subsurface data from multiple anisotropic and isotropic CSV files. 
           The tool allows users to toggle between different visualization modes: standard view, interactive slicing, and structure identification.
-Last Updated: 08/10/2024
+Last Updated: 08/22/2024
 """
 
 import pandas as pd
 import numpy as np
 from mayavi import mlab
-from traits.api import HasTraits, Instance, Enum, Button
+from traits.api import HasTraits, Instance, Enum, Button, on_trait_change
 from traitsui.api import View, Item, Group, HGroup, VGroup
 from mayavi.core.ui.api import MayaviScene, MlabSceneModel, SceneEditor
 
@@ -82,6 +82,8 @@ class VisualizationTool(HasTraits):
     scene = Instance(MlabSceneModel, ())
     view_mode = Enum("Standard", "Interactive Slicing",
                      "Structure Identification")
+    # Toggle for data type
+    view_data = Enum("Anisotropic Data", "Isotropic Data")
     update_view = Button("Update View")
 
     def __init__(self):
@@ -90,6 +92,20 @@ class VisualizationTool(HasTraits):
         self.x = None
         self.y = None
         self.z = None
+        self.data = None  # To store the data for the current view
+        self.title = ""
+
+        self.set_data(x_unique_a, y_unique_a, z_unique_a,
+                      value_3d_a, "Anisotropic Data")
+
+    @on_trait_change('view_data')
+    def update_data(self):
+        if self.view_data == "Anisotropic Data":
+            self.set_data(x_unique_a, y_unique_a, z_unique_a,
+                          value_3d_a, "Anisotropic Data")
+        elif self.view_data == "Isotropic Data":
+            self.set_data(x_unique_i, y_unique_i, z_unique_i,
+                          value_3d_i, "Isotropic Data")
 
     def _view_mode_changed(self):
         self.update_visualization()
@@ -111,31 +127,67 @@ class VisualizationTool(HasTraits):
         self.plot_data = mlab.pipeline.scalar_field(
             self.x, self.y, self.z, self.data)
         mlab.pipeline.volume(self.plot_data)
-        mlab.axes(color=(0, 0, 0))
-        mlab.title(f"{self.title} - Standard View", size=0.5, color=(0, 0, 0))
+
+        # Customize axes with black labels and numbers
+        axes = mlab.axes(self.plot_data, color=(0, 0, 0),
+                         xlabel='X', ylabel='Y', zlabel='Z')
+        axes.label_text_property.color = (0, 0, 0)  # Axis labels color
+        axes.title_text_property.color = (0, 0, 0)  # Axis title color
+        axes.label_text_property.font_size = 12  # Adjust font size if needed
+        axes.title_text_property.font_size = 12  # Font size for titles
+        axes.axes.label_format = '%.1f'  # Format the numbers to ensure they are visible
+
+        # Add a colorbar to the side
+        mlab.colorbar(object=self.plot_data,
+                      orientation='vertical', title="Value")
+
+        # Customize the title position and color
+        mlab.title(f"{self.title} - Standard View", size=0.3,
+                   height=0.95, color=(0, 0, 0))  # Move text higher
+        self.scene.background = (1, 1, 1)  # Set background to white
 
     def plot_slicing(self):
         self.plot_data = mlab.pipeline.scalar_field(
             self.x, self.y, self.z, self.data)
         mlab.pipeline.volume(self.plot_data)
-        mlab.pipeline.image_plane_widget(
-            self.plot_data, plane_orientation='x_axes', slice_index=self.x.shape[0] // 2)
-        mlab.pipeline.image_plane_widget(
-            self.plot_data, plane_orientation='y_axes', slice_index=self.y.shape[1] // 2)
+
+        # Display only a single plane for clarity
         mlab.pipeline.image_plane_widget(
             self.plot_data, plane_orientation='z_axes', slice_index=self.z.shape[2] // 2)
-        mlab.axes(color=(0, 0, 0))
+
+        # Clip the data on one side of the slice
+        self.plot_data = mlab.pipeline.extract_grid(self.plot_data, extent=(
+            0, self.x.shape[0] // 2, 0, self.y.shape[1], 0, self.z.shape[2]))
+
+        axes = mlab.axes(self.plot_data, color=(0, 0, 0),
+                         xlabel='X', ylabel='Y', zlabel='Z')
+        axes.label_text_property.color = (0, 0, 0)
+        axes.title_text_property.color = (0, 0, 0)
+        axes.label_text_property.font_size = 12
+        axes.title_text_property.font_size = 12
+        axes.axes.label_format = '%.1f'
+        mlab.colorbar(object=self.plot_data,
+                      orientation='vertical', title="Value")
         mlab.title(f"{self.title} - Interactive Slicing",
-                   size=0.5, color=(0, 0, 0))
+                   size=0.3, height=0.95, color=(0, 0, 0))
 
     def plot_structures(self):
         self.plot_data = mlab.pipeline.scalar_field(
             self.x, self.y, self.z, self.data)
         threshold = mlab.pipeline.threshold(self.plot_data, low=self.threshold)
         mlab.pipeline.surface(threshold, colormap='viridis')
-        mlab.axes(color=(0, 0, 0))
+
+        axes = mlab.axes(self.plot_data, color=(0, 0, 0),
+                         xlabel='X', ylabel='Y', zlabel='Z')
+        axes.label_text_property.color = (0, 0, 0)
+        axes.title_text_property.color = (0, 0, 0)
+        axes.label_text_property.font_size = 12
+        axes.title_text_property.font_size = 12
+        axes.axes.label_format = '%.1f'
+        mlab.colorbar(object=self.plot_data,
+                      orientation='vertical', title="Value")
         mlab.title(f"{self.title} - Structure Identification",
-                   size=0.5, color=(0, 0, 0))
+                   size=0.3, height=0.95, color=(0, 0, 0))
 
     def set_data(self, x, y, z, data, title, threshold=4.0):
         self.x, self.y, self.z = np.meshgrid(x, y, z, indexing='ij')
@@ -148,11 +200,12 @@ class VisualizationTool(HasTraits):
         VGroup(
             HGroup(
                 Item('view_mode', label="Visualization Mode"),
+                # Add toggle for data type
+                Item('view_data', label="Data Type"),
                 Item('update_view', show_label=False),
             ),
             Group(
-                Item('scene',
-                     editor=SceneEditor(scene_class=MayaviScene),
+                Item('scene', editor=SceneEditor(scene_class=MayaviScene),
                      height=500, width=700, show_label=False),
             ),
         ),
@@ -163,12 +216,4 @@ class VisualizationTool(HasTraits):
 
 # Instantiate the visualization tool
 viz_tool = VisualizationTool()
-
-# Set anisotropic data as default, and allow toggle between modes
-viz_tool.set_data(x_unique_a, y_unique_a, z_unique_a,
-                  value_3d_a, "Anisotropic Data")
-
-# To show isotropic data, call:
-# viz_tool.set_data(x_unique_i, y_unique_i, z_unique_i, value_3d_i, "Isotropic Data")
-
 viz_tool.configure_traits()
