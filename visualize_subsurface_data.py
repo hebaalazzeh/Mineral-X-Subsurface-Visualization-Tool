@@ -1,7 +1,7 @@
 """
-Mineral- X Subsurface Visualization Tool
+Subsurface Visualization Tool
 Created by: Heba Alazzeh
-Function: This script loads, processes, and visualizes 3D subsurface data from multiple anisotropic and isotropic CSV files.
+Function: This script loads, processes, and visualizes 3D subsurface data from multiple anisotropic and isotropic CSV files. 
           The tool allows users to toggle between different visualization modes: standard view, interactive slicing, and structure identification.
 Last Updated: 08/10/2024
 """
@@ -83,31 +83,6 @@ class VisualizationTool(HasTraits):
     view_mode = Enum("Standard", "Interactive Slicing",
                      "Structure Identification")
     update_view = Button("Update View")
-    view_data = Enum("Anisotropic Data", "Isotropic Data")
-
-    def anisotropic_data_call(self):
-        # method to visualize anistotropic data call
-        viz_tool.set_data(x_unique_a, y_unique_a,
-                          z_unique_a, value_3d_a, "Anisotropic Data")
-
-    def isotropic_data_call(self):
-        # method to visualize istotropic data call
-        viz_tool.set_data(x_unique_i, y_unique_i,
-                          z_unique_i, value_3d_i, "Isotropic Data")
-
-    def update_visualization_data(self):
-        self.scene.mlab.clf()  # Clear the scene
-        if self.view_data == "Anisotropic Data":
-            self.anisotropic_data_call()
-        elif self.view_data == "Isotropic Data":
-            self.isotropic_data_call()
-
-    def toggle_data_mode(self):
-        if self.view_data == "Anisotropic Data":
-            self.view_data = "Isotropic Data"
-        else:
-            self.view_data = "Anisotropic Data"
-            self.update_visualization_data()
 
     def __init__(self):
         super(VisualizationTool, self).__init__()
@@ -115,7 +90,6 @@ class VisualizationTool(HasTraits):
         self.x = None
         self.y = None
         self.z = None
-        self.view_data = "Anisotropic Data"
 
     def _view_mode_changed(self):
         self.update_visualization()
@@ -182,10 +156,6 @@ class VisualizationTool(HasTraits):
                      height=500, width=700, show_label=False),
             ),
         ),
-
-        # Set anisotropic data as default, and allow toggle between modes
-        # toggle option to choose between anistoropic and isotropic dat
-
         resizable=True,
         title="Subsurface Visualization Tool",
     )
@@ -193,4 +163,12 @@ class VisualizationTool(HasTraits):
 
 # Instantiate the visualization tool
 viz_tool = VisualizationTool()
+
+# Set anisotropic data as default, and allow toggle between modes
+viz_tool.set_data(x_unique_a, y_unique_a, z_unique_a,
+                  value_3d_a, "Anisotropic Data")
+
+# To show isotropic data, call:
+# viz_tool.set_data(x_unique_i, y_unique_i, z_unique_i, value_3d_i, "Isotropic Data")
+
 viz_tool.configure_traits()
